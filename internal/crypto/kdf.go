@@ -26,7 +26,7 @@ func DefaultKDFParams() KDFParams {
 	}
 }
 
-// derives a 32-byte master/encryption key from a password and salt using Argon2id
+// derives a 32-byte encryption key from a password and salt using Argon2id
 func DeriveKey(password, salt []byte, params KDFParams) []byte {
 	return argon2.IDKey(password, salt, params.Iterations, params.Memory, params.Parallelism, params.Keylen)
 }
