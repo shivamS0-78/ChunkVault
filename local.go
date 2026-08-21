@@ -4,9 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 
+	backend "restic-clone/internal"
 	"restic-clone/internal/backend"
 )
 
@@ -74,5 +77,59 @@ func (l *Local) Save(id string, r io.Reader) error {
 		return fmt.Errorf("local : save %v: rename : %w", id, err)
 	}
 
+	return nil
+}
+
+func (l *Local) Load(id string) (io.ReadCloser, error) {
+	f, err := os.Open(l.path(id))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("local : load %v: not found", id)
+		}
+		return nil, fmt.Errorf("local : load %v: %w", id, err)
+	}
+	return f, nil
+}
+
+func (l *Local) Stat(id string) (int64, error) {
+	fi, err := os.Stat(l.path(id))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return 0, fmt.Errorf("local : stat %v: not found", id, backend.ErrNotFound)
+		}
+		return 0, fmt.Errorf("local : stat %v: %w", id, err)
+	}
+	return fi.Size(), nil
+}
+
+func (l *Local) List() ([]string, error) {
+	var ids []string
+	err := filepath.WalkDir(l.root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		if strings.HasSuffix(path, ".tmp") {
+			return nil
+		}
+
+		ids = append(ids, d.Name())
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("local: list :%w", err)
+	}
+	return ids, err
+}
+
+func (l *Local) Remove(id string) error {
+	if err := os.Remove(l.path(id)); err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("local: remove %s: %w", id, backend.ErrNotFound)
+		}
+		return fmt.Errorf("local: remove %s: %w", id, err)
+	}
 	return nil
 }
